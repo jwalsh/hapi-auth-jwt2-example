@@ -1,0 +1,20 @@
+{
+  "name": "hapi-auth-jwt2-example",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "hapi": "^16.4.1",
+    "hapi-auth-jwt2": "^7.2.4",
+    "njwt": "^0.4.0",
+    "uuid": "^3.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^3.19.0"
+  }
+}
