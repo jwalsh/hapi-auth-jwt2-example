@@ -11,6 +11,7 @@
   "dependencies": {
     "hapi": "^16.4.1",
     "hapi-auth-jwt2": "^7.2.4",
+    "lodash": "^4.17.4",
     "md5": "^2.2.1",
     "njwt": "^0.4.0",
     "sodium": "^2.0.1",

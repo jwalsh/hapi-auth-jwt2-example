@@ -2,6 +2,7 @@ var Hapi = require('hapi');
 var uuid = require('uuid');
 var nJwt = require('njwt');
 var sodium = require('sodium').api;
+var _ = require('lodash');
 
 var md5 = require('md5');
 var hash = new Buffer(sodium.crypto_pwhash_STRBYTES);
@@ -10,35 +11,46 @@ var hash = new Buffer(sodium.crypto_pwhash_STRBYTES);
 var secret = 'LoremIpsumDolorSitAmet';
 let PORT = 3773;
 
-var claims = {
- "sub": "1234567890",
- "id": "2",
- "name": "John Adams",
- "admin": true,
- "jti": "b92d9136-47e2-42b7-b754-5b77843470ba",
- "iat": 1496856145,
- "exp": 1496859745
-}
+let sample = {};
 
 const makeUsers = () => {
-  let users = [
-    {
-      name: 'George Washington',
-      email: 'gw@us.gov',
-      password: 'gw'
-    },
-    {
-      name: 'John Adams',
-      email: 'ja@us.gov',
-      password: 'ja'
-    },
-    {
-      name: 'Thomas Jefferson',
-      email: 'tj@us.gov',
-      password: 'tj'
-    }
-  ];
-  users.map(user => {
+
+let users = `Jason	Walsh	j@wal.sh
+George	Washington	gw@us.gov
+Karen	Cornish	karen.cornish@foo.com
+Bernadette	Sharp	bernadette.sharp@foo.com
+Carol	Ince	carol.ince@foo.com
+Deirdre	Baker	deirdre.baker@foo.com
+Jennifer	Wilkins	jennifer.wilkins@foo.com
+Vanessa	Chapman	vanessa.chapman@foo.com
+Adam	Sutherland	adam.sutherland@foo.com
+David	Payne	david.payne@foo.com
+Stephanie	Parsons	stephanie.parsons@foo.com
+Matt	Bell	matt.bell@bar.com
+Keith	Lawrence	keith.lawrence@bar.com
+Matt	Fisher	matt.fisher@bar.com
+Megan	Howard	megan.howard@bar.com
+Andrea	Lyman	andrea.lyman@bar.com
+Dominic	Graham	dominic.graham@bar.com
+Sally	Ross	sally.ross@bar.com
+Katherine	Kerr	katherine.kerr@bar.com
+Diane	Ogden	diane.ogden@bar.com
+Melanie	Quinn	melanie.quinn@bar.com
+Ruth	Cameron	ruth.cameron@bar.com
+James	Ferguson	james.ferguson@bar.com
+Lucas	Peake	lucas.peake@bar.com`
+    .split('\n')
+    .map((e, i) => {
+      let u = e.split('	');
+      return {
+        id: i,
+        name: `${u[0]} ${u[1]}`,
+        username: u[2],
+        password: 'password'
+      }
+    });
+  sample = _.sample(users)
+  let result = users.map(user => {
     var salt = Math.random();
 
     let base = `${salt}:${user.password}`;
@@ -50,50 +62,32 @@ const makeUsers = () => {
     );
 
     let md5Hash = md5(base);
-    let result =  {};
-    result[user.email] = {
+    let result = {
       name: user.name,
-      email: user.email,
+      username: user.username,
+      // password: user.password, // debugging
       salt: salt,
       hash: md5Hash // hash.toString()
     };
-
-    console.log(result);
-
     return result;
-
   })
-}
-// makeUsers()
+    .reduce((p, c) => {
+      p[c.username] = c;
+      return p;
+    }, {});
 
-const login = (email, password) =>  {
-  let users = {
-    'gw@us.gov':
-    { id: 1,
-      name: 'George Washington',
-      email: 'gw@us.gov',
-      salt: 0.3825882128395248,
-      hash: '517df48ab807f998d8823738a6f68697'
-    },
-    'ja@us.gov':
-    {
-      id: 2,
-      name: 'John Adams',
-      email: 'ja@us.gov',
-      salt: 0.24036750186029487,
-      hash: '9a14748feaa34f03456b7defdaa30f63'
-    },
-    'tj@us.gov':
-    {
-      id: 3,
-      name: 'Thomas Jefferson',
-      email: 'tj@us.gov',
-      salt: 0.44261049781007067,
-      hash: '16e02d3528da10b84075587a6179669a'
-    }
-  };
+  return result;
+};
 
-  let user = users[email];
+let users = makeUsers();
+
+
+console.log('Users', Object.keys(users))
+
+const login = (username, password) =>  {
+
+  let user = users[username];
+  console.log('login()', username, password, user)
   let base = `${user.salt}:${password}`;
   if (user.hash === md5(base)) {
     console.log(user.name, 'logged in');
@@ -101,54 +95,9 @@ const login = (email, password) =>  {
   }
 }
 
-var report = {
-        "Data": 39329392,
-        "Name": "labore",
-        "Chart": {
-                "category": [
-                        "ea"
-                ],
-                "series": [
-                        69058461,
-                        -68137048,
-                        1911288
-                ]
-        },
-        "User": {
-                "id": -12821672,
-                "username": "est",
-                "firstName": "irure",
-                "lastName": "ut",
-                "email": "nostrud eiusmod et",
-                "password": "occaecat adipisicing ut culpa nulla",
-                "phone": "est pariatur Excepteur anim consectetur",
-                "userStatus": -29400731
-        },
-        "ApiResponse": {
-                "code": -37480749,
-                "type": "ullamco",
-                "message": "elit ea"
-        }
-}
-
-var jwt = nJwt.create(claims, secret,"HS256");
-var token = jwt.compact();
-
 var validate = function (decoded, request, callback) {
-  const users = {
-    1: {
-      name: 'George Washington'
-    },
-    2: {
-      name: 'John Adams'
-    },
-    2: {
-      name: 'Thomas Jefferson'
-    }
-  };
-
   console.log('validate', decoded);
-  if (!users[decoded.id]) {
+  if (!users[decoded.username]) {
     return callback(null, false);
   }
   else {
@@ -167,11 +116,20 @@ let navigationHtml = `
 <li><a href=/secret>/secret</a></li>
 <li><a href=/restricted>/restricted</a></li>
 <hr/>
-<li><a href=/secret?token=${token}/secret>authenticated:/secret</a><tt>?token=${token}</tt></li>
+<li>JWT: <a href=/secret?token=LOREM/secret>authenticated:/secret</a></li>
 </ul>
 <pre>
 <script>
-document.write(localStorage.getItem('jw-jwt'))
+function parseJwt (token) {
+            var base64Url = token.split('.')[1];
+            var base64 = base64Url.replace('-', '+').replace('_', '/');
+            return JSON.parse(window.atob(base64));
+        };
+var token = localStorage.getItem('jw-jwt');
+if (token) {
+console.log(parseJwt(token));
+document.write(JSON.stringify(parseJwt(token), null, '  ');
+}
 </script>
 </pre>
 `;
@@ -179,19 +137,18 @@ document.write(localStorage.getItem('jw-jwt'))
 let loginHtml = `
 <h1>Sign In</h1>
 <div class="container">
-  <div class="card card-container">
-    <img id="profile-img" class="profile-img-card" src="https://ssl.gstatic.com/accounts/ui/avatar_2x.png" />
+  <div class="card card-conteimg" class="profile-img-card" src="https://ssl.gstatic.com/accounts/ui/avatar_2x.png" />
     <p id="profile-name" class="profile-name-card"></p>
     <form class="form-signin" action="/user/login" method="POST">
-      <span id="reauth-email" class="reauth-email"></span>
-      <input type="email" value="gw@us.gov" id="inputEmail" class="form-control" placeholder="Email address" required autofocus>
-      <input type="password" value="gw" id="inputPassword" class="form-control" placeholder="Password" required>
+      <span id="reauth-username" class="reauth-username"></span>
+      <input type="email" value="${sample.username}" name="username" class="form-control" placeholder="Username or Email" required autofocus>
+      <input type="password" value="${sample.password}" name="password" class="form-control" placeholder="Password" required>
       <div id="remember" class="checkbox">
         <label>
           <input type="checkbox" value="remember-me"> Remember me
         </label>
       </div>
-      <button class="btn btn-lg btn-primary btn-block btn-signin" type="submit">Sign in</button>
+      <input class="btn btn-lg btn-primary btn-block btn-signin" type="submit">Sign in</input>
     </form><!-- /form -->
     <a href="#" class="forgot-password">
       Forgot the password?
@@ -221,7 +178,7 @@ server.register(require('hapi-auth-jwt2'), function (err) {
     'jwt',
     'jwt',
     {
-      key: secret, // 'NeverShareYourSecret',
+      key: secret,
       validateFunc: validate,
       verifyOptions: {
         algorithms: [ 'HS256' ]
@@ -238,15 +195,16 @@ server.register(require('hapi-auth-jwt2'), function (err) {
       handler: function(request, reply) {
         console.log('POST: /user/login', request.payload);
 
-        let email = request.payload.email || 'gw@us.gov';
-        let password = request.payload.password || 'gw';
-        let user = login(email, password);
+        let username = request.payload.username || request.payload.username;
+        let password = request.payload.password;
+        console.log(username, password)
+        let user = login(username, password);
 
         var claims = {
           "sub": "1234567890",
           "id": user.id,
           "name": user.name,
-          "email": user.email,
+          "username": user.username,
           "admin": true,
           "jti": "b92d9136-47e2-42b7-b754-5b77843470ba",
           "iat": 1496856145,
