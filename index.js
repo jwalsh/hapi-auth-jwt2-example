@@ -191,12 +191,19 @@ ${footerHtml}
 
 
 
-const server = new Hapi.Server();
+let server = new Hapi.Server();
+
+
+
+server.connection({
+  port: PORT,
+  routes: {
+    cors: true
+  }
+});
+
 server.ext('onPreResponse', corsHeaders);
 
-
-server.connection({ port: PORT });
-// include our module here ↓↓
 server.register(require('hapi-auth-jwt2'), function (err) {
 
   if(err){
@@ -234,19 +241,24 @@ server.register(require('hapi-auth-jwt2'), function (err) {
         } else {
 
           const claims = {
-            "sub": "1234567890",
+            "sub": parseInt(Math.random() * 10000),
             "id": user.id,
             "name": user.name,
             "username": user.username,
-            "admin": true,
-            "jti": "b92d9136-47e2-42b7-b754-5b77843470ba",
-            "iat": 1496856145,
-            "exp": 1496859745
+            "admin": true
           }
 
           const jwt = nJwt.create(claims, secret,"HS256");
           const token = jwt.compact();
-          reply(`${headerHtml}<h1>Logged in ${user.name}</h1><script>localStorage.setItem('jw-jwt', '${token}');</script>${footerHtml}`);
+          // reply(`${headerHtml}<h1>Logged in ${user.name}</h1><script>localStorage.setItem('jw-jwt', '${token}');</script>${footerHtml}`);
+          // reply(claims);
+
+          var result = {
+	    claim: claims,
+	    token: token
+	  };
+          reply(result);
+
         }
       }
     },
