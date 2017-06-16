@@ -1,21 +1,24 @@
-var Hapi = require('hapi');
-var uuid = require('uuid');
-var nJwt = require('njwt');
-var sodium = require('sodium').api;
-var _ = require('lodash');
+const Hapi = require('hapi');
+const uuid = require('uuid');
+const nJwt = require('njwt');
+const sodium = require('sodium').api;
+const _ = require('lodash');
+const md5 = require('md5');
+const corsHeaders = require('hapi-cors-headers')
 
-var md5 = require('md5');
-var hash = new Buffer(sodium.crypto_pwhash_STRBYTES);
+let hash = new Buffer(sodium.crypto_pwhash_STRBYTES);
 
+const secret = 'LoremIpsumDolorSitAmet';
+const PORT = 3773;
 
-var secret = 'LoremIpsumDolorSitAmet';
-let PORT = 3773;
-
+// A mock user to populate the form
 let sample = {};
 
+// Create a mock users table
 const makeUsers = () => {
 
-let users = `Jason	Walsh	j@wal.sh
+  const users = `Jason	Walsh	j@wal.sh
+Test	User	kewlphantomhawk
 George	Washington	gw@us.gov
 Karen	Cornish	karen.cornish@foo.com
 Bernadette	Sharp	bernadette.sharp@foo.com
@@ -39,30 +42,30 @@ Melanie	Quinn	melanie.quinn@bar.com
 Ruth	Cameron	ruth.cameron@bar.com
 James	Ferguson	james.ferguson@bar.com
 Lucas	Peake	lucas.peake@bar.com`
-    .split('\n')
-    .map((e, i) => {
-      let u = e.split('	');
-      return {
-        id: i,
-        name: `${u[0]} ${u[1]}`,
-        username: u[2],
-        password: 'password'
-      }
-    });
+      .split('\n')
+      .map((e, i) => {
+        const u = e.split('	');
+        return {
+          id: i,
+          name: `${u[0]} ${u[1]}`,
+          username: u[2],
+          password: 'password'
+        }
+      });
   sample = _.sample(users)
-  let result = users.map(user => {
-    var salt = Math.random();
+  const result = users.map(user => {
+    const salt = Math.random();
 
-    let base = `${salt}:${user.password}`;
-    var passwordBuffer = new Buffer(base);
+    const base = `${salt}:${user.password}`;
+    const passwordBuffer = new Buffer(base);
     hash = sodium.crypto_pwhash_str(
       passwordBuffer,
       sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE,
       sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE
     );
 
-    let md5Hash = md5(base);
-    let result = {
+    const md5Hash = md5(base);
+    const result = {
       name: user.name,
       username: user.username,
       // password: user.password, // debugging
@@ -71,31 +74,34 @@ Lucas	Peake	lucas.peake@bar.com`
     };
     return result;
   })
-    .reduce((p, c) => {
-      p[c.username] = c;
-      return p;
-    }, {});
+      .reduce((p, c) => {
+        p[c.username] = c;
+        return p;
+      }, {});
 
   return result;
 };
 
-let users = makeUsers();
+const users = makeUsers();
 
 
 console.log('Users', Object.keys(users))
 
 const login = (username, password) =>  {
 
-  let user = users[username];
+  const user = users[username];
   console.log('login()', username, password, user)
-  let base = `${user.salt}:${password}`;
+  const base = `${user.salt}:${password}`;
   if (user.hash === md5(base)) {
     console.log(user.name, 'logged in');
     return user
+  } else {
+    console.log('Username and password invalid', user.hash, md5(base));
+    return null; //
   }
 }
 
-var validate = function (decoded, request, callback) {
+const validate = function (decoded, request, callback) {
   console.log('validate', decoded);
   if (!users[decoded.username]) {
     return callback(null, false);
@@ -106,7 +112,33 @@ var validate = function (decoded, request, callback) {
 };
 
 
-let navigationHtml = `
+const navigationJs = () => {
+  function parseJwt (token) {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace('-', '+').replace('_', '/');
+    return JSON.parse(window.atob(base64));
+  };
+  const token = localStorage.getItem('jw-jwt');
+  if (token) {
+    console.log(parseJwt(token));
+    document.write(JSON.stringify(parseJwt(token), null, '  '));
+  }
+}
+
+// console.log(navigationJs.toString())
+const headerHtml = `
+<a href=/>[home]</a><br/><hr/>
+`;
+
+const footerHtml = `
+<pre>
+<script>
+(${navigationJs.toString()})()
+</script>
+</pre>
+`
+const navigationHtml = `
+${headerHtml}
 <ul>
 <li><a href=/>public:/</a></li>
 <li><a href=/login>public:/login</a></li>
@@ -118,23 +150,11 @@ let navigationHtml = `
 <hr/>
 <li>JWT: <a href=/secret?token=LOREM/secret>authenticated:/secret</a></li>
 </ul>
-<pre>
-<script>
-function parseJwt (token) {
-            var base64Url = token.split('.')[1];
-            var base64 = base64Url.replace('-', '+').replace('_', '/');
-            return JSON.parse(window.atob(base64));
-        };
-var token = localStorage.getItem('jw-jwt');
-if (token) {
-console.log(parseJwt(token));
-document.write(JSON.stringify(parseJwt(token), null, '  ');
-}
-</script>
-</pre>
+${footerHtml}
 `;
 
-let loginHtml = `
+const loginHtml = `
+${headerHtml}
 <h1>Sign In</h1>
 <div class="container">
   <div class="card card-conteimg" class="profile-img-card" src="https://ssl.gstatic.com/accounts/ui/avatar_2x.png" />
@@ -155,19 +175,28 @@ let loginHtml = `
     </a>
   </div><!-- /card-container -->
 </div><!-- /container -->
+${footerHtml}
 `;
 
 
-let logoutHtml = `
+const logoutHtml = `
+${headerHtml}
 <h1>You have been logged out.</h1>
+<script>
+localStorage.removeItem('jw-jwt');
+</script>
+${footerHtml}
 `;
 
 
 
 
-var server = new Hapi.Server();
+const server = new Hapi.Server();
+server.ext('onPreResponse', corsHeaders);
+
+
 server.connection({ port: PORT });
-        // include our module here ↓↓
+// include our module here ↓↓
 server.register(require('hapi-auth-jwt2'), function (err) {
 
   if(err){
@@ -195,25 +224,30 @@ server.register(require('hapi-auth-jwt2'), function (err) {
       handler: function(request, reply) {
         console.log('POST: /user/login', request.payload);
 
-        let username = request.payload.username || request.payload.username;
-        let password = request.payload.password;
+        const username = request.payload.username || request.payload.username;
+        const password = request.payload.password;
         console.log(username, password)
-        let user = login(username, password);
+        const user = login(username, password);
+        if (!user) {
+          console.log('No user found')
+          reply(new Error('401'));
+        } else {
 
-        var claims = {
-          "sub": "1234567890",
-          "id": user.id,
-          "name": user.name,
-          "username": user.username,
-          "admin": true,
-          "jti": "b92d9136-47e2-42b7-b754-5b77843470ba",
-          "iat": 1496856145,
-          "exp": 1496859745
+          const claims = {
+            "sub": "1234567890",
+            "id": user.id,
+            "name": user.name,
+            "username": user.username,
+            "admin": true,
+            "jti": "b92d9136-47e2-42b7-b754-5b77843470ba",
+            "iat": 1496856145,
+            "exp": 1496859745
+          }
+
+          const jwt = nJwt.create(claims, secret,"HS256");
+          const token = jwt.compact();
+          reply(`${headerHtml}<h1>Logged in ${user.name}</h1><script>localStorage.setItem('jw-jwt', '${token}');</script>${footerHtml}`);
         }
-
-        var jwt = nJwt.create(claims, secret,"HS256");
-        var token = jwt.compact();
-        reply(`<h1>Logged in ${user.name}</h1><script>localStorage.setItem('jw-jwt', '${token}');</script>`);
       }
     },
 
